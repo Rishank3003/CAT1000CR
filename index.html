@@ -176,6 +176,8 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .verdict{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:18px}
 .verdict.ok{color:var(--mark)}
 .verdict.no{color:var(--signal)}
+.verdict.sk{color:#7E838B}
+.verdict b{font-size:13px;margin-left:6px}
 
 /* ---------- footer nav ---------- */
 .nav{
@@ -230,6 +232,11 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .score{display:flex;align-items:flex-end;gap:20px;border-bottom:1.5px solid var(--ink);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap}
 .score-n{font-family:var(--mono);font-size:64px;font-weight:600;line-height:.9;font-variant-numeric:tabular-nums}
 .score-n small{font-size:24px;color:var(--ink-soft)}
+.score-n.neg{color:var(--signal)}
+.marks{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 9px;margin-bottom:7px}
+.mk{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.04em}
+.mk.ok{color:var(--mark)}.mk.no{color:var(--signal)}.mk.sk{color:#8B9099}
+.mx{font-family:var(--mono);font-size:10px;color:#9AA0A8;margin-left:-5px}
 .score-side{margin-bottom:5px}
 .score-side div{font-family:var(--mono);font-size:11px;color:var(--ink-soft);letter-spacing:.08em}
 .rev{display:flex;flex-direction:column;border-top:1px solid var(--rule)}
@@ -241,7 +248,12 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .rev-n{font-family:var(--mono);font-size:12px;color:var(--ink-soft);width:20px;font-variant-numeric:tabular-nums}
 .rev-t{flex:1;font-size:14.5px;color:#3A3F47;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rev-m{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.08em;flex:none}
-.rev-m.ok{color:var(--mark)}.rev-m.no{color:var(--signal)}
+.rev-m.ok{color:var(--mark)}.rev-m.no{color:var(--signal)}.rev-m.sk{color:#8B9099}
+.rev-p{
+  font-family:var(--mono);font-size:12px;font-weight:600;flex:none;
+  width:30px;text-align:right;font-variant-numeric:tabular-nums;
+}
+.rev-p.ok{color:var(--mark)}.rev-p.no{color:var(--signal)}.rev-p.sk{color:#B0B5BC}
 .hint{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:#8891A0;text-transform:uppercase;text-align:center;margin-top:14px}
 @media(max-width:640px){
   .hint{display:none}
@@ -262,6 +274,20 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 <script>
 const LETTERS = ["A","B","C","D","E"];
 const DURATION = 15 * 60;            // 15 minutes per set
+const RIGHT = 3, WRONG = -1, BLANK = 0;   // marks per question
+const signed = n => (n > 0 ? "+" : n < 0 ? "\u2212" : "") + Math.abs(n);
+
+function tally(qs, picks){
+  let c = 0, w = 0, b = 0;
+  qs.forEach((q,n) => {
+    if (picks[n] === null) b++;
+    else if (picks[n] === q.a) c++;
+    else w++;
+  });
+  return { c, w, b, m: c*RIGHT + w*WRONG, max: qs.length*RIGHT };
+}
+// older saved rounds may predate marks — fill them in
+const marksOf = r => r.m !== undefined ? r.m : r.c*RIGHT + ((r.n||r.c) - r.c)*WRONG;
 const app = document.getElementById("app");
 
 let scores = {};                     // setIndex -> {c: correct, t: secondsUsed}
@@ -285,10 +311,13 @@ const mmss = s => Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
 
 /* ---------------- index screen ---------------- */
 function renderIndex(){
-  const done = Object.keys(scores).length;
-  const total = Object.values(scores).reduce((a,v)=>a+v.c, 0);
-  const asked = Object.keys(scores).reduce((a,k)=>a+DATA.sets[k].length, 0);
-  const pct = asked ? Math.round(total/asked*100) : 0;
+  const keys = Object.keys(scores);
+  const done = keys.length;
+  const got = keys.reduce((a,k)=>a+marksOf(scores[k]), 0);
+  const poss = keys.reduce((a,k)=>a+(scores[k].max || DATA.sets[k].length*RIGHT), 0);
+  const right = keys.reduce((a,k)=>a+scores[k].c, 0);
+  const tried = keys.reduce((a,k)=>a+(scores[k].w!==undefined ? scores[k].c+scores[k].w : scores[k].c), 0);
+  const pct = tried ? Math.round(right/tried*100) : 0;
 
   const list = DATA.meta.filter(m =>
     filter === "ALL" ? true :
@@ -304,12 +333,14 @@ function renderIndex(){
     <div class="hero">
       <h1>Critical Reasoning<br><em>in sets of ten.</em></h1>
       <p>The full question bank, cut into 196 timed sets. Fifteen minutes on the clock,
-         ten arguments, one answer sheet. The clock submits for you when it runs out.</p>
+         ten arguments, one answer sheet. Marked <b>+3</b> for a correct answer,
+         <b>\u22121</b> for a wrong one, <b>0</b> for a blank \u2014 so guess only when you can narrow it down.</p>
       <div class="stats">
         <div class="stat"><b>1,953</b><span>Questions</span></div>
         <div class="stat"><b>196</b><span>Sets</span></div>
         <div class="stat"><b>${done}</b><span>Completed</span></div>
-        <div class="stat"><b>${asked?pct+"%":"\u2014"}</b><span>Accuracy</span></div>
+        <div class="stat"><b>${done?signed(got)+"/"+poss:"\u2014"}</b><span>Marks</span></div>
+        <div class="stat"><b>${tried?pct+"%":"\u2014"}</b><span>Strike rate</span></div>
       </div>
     </div>
     <div class="filters">
@@ -320,9 +351,10 @@ function renderIndex(){
       const s = scores[m.n-1];
       let r = `<div class="tile-r" style="color:#A9AFB8">\u2014</div>`;
       if (s){
-        const p = s.c / DATA.sets[m.n-1].length;
-        const k = p >= .8 ? "hi" : p >= .6 ? "mid" : "lo";
-        r = `<div class="tile-r ${k}">${s.c}/${DATA.sets[m.n-1].length} &middot; ${mmss(s.t)}</div>`;
+        const mk = marksOf(s), mx = s.max || DATA.sets[m.n-1].length*RIGHT;
+        const p = mk / mx;
+        const k = p >= .7 ? "hi" : p >= .4 ? "mid" : "lo";
+        r = `<div class="tile-r ${k}">${signed(mk)}/${mx} &middot; ${mmss(s.t)}</div>`;
       }
       return `<button class="tile ${m.exam.toLowerCase()}" data-set="${m.n-1}">
         <div class="tile-n">${String(m.n).padStart(3,"0")}</div>
@@ -372,8 +404,9 @@ function quit(){
 async function finish(){
   clearInterval(S.timer); clearTimeout(S.pending); S.pending = null; S.paused = false;
   S.graded = true;
-  const c = S.qs.reduce((a,q,n)=> a + (S.picks[n] === q.a ? 1 : 0), 0);
-  scores[S.i] = { c, t: Math.min(DURATION, DURATION - Math.max(0,S.left)) };
+  const r = tally(S.qs, S.picks);
+  scores[S.i] = { c: r.c, w: r.w, b: r.b, m: r.m, max: r.max, n: S.qs.length,
+                  t: Math.min(DURATION, DURATION - Math.max(0,S.left)) };
   await saveScores();
   renderResults();
 }
@@ -446,9 +479,12 @@ function qBody(review){
   let verdict = "";
   if (review){
     const ok = S.picks[n]===q.a;
-    verdict = `<div class="verdict ${ok?"ok":"no"}">${
+    const blank = S.picks[n]===null;
+    const pts = blank ? BLANK : ok ? RIGHT : WRONG;
+    verdict = `<div class="verdict ${ok?"ok":blank?"sk":"no"}">${
       ok ? "Correct \u2014 " + LETTERS[q.a]
-         : (S.picks[n]===null ? "Left blank" : "You chose " + LETTERS[S.picks[n]]) + " \u2014 answer is " + LETTERS[q.a]}</div>`;
+         : (blank ? "Left blank" : "You chose " + LETTERS[S.picks[n]]) + " \u2014 answer is " + LETTERS[q.a]
+      } <b>${signed(pts)}</b></div>`;
   }
   return `<div class="card">
     <div class="qhead">
@@ -505,24 +541,32 @@ function renderDrill(){
 /* ---------------- results ---------------- */
 function renderResults(){
   S.view = "results";
-  const c = scores[S.i].c, tot = S.qs.length, used = scores[S.i].t;
+  const r = scores[S.i], tot = S.qs.length, used = r.t;
+  const attempted = r.c + r.w;
   app.innerHTML = chrome() + `<div class="wrap"><div class="card">
     <div class="score">
-      <div class="score-n">${c}<small>/${tot}</small></div>
+      <div class="score-n ${r.m<0?"neg":""}">${signed(r.m)}<small>/${r.max}</small></div>
       <div class="score-side">
-        <div>${Math.round(c/tot*100)}% correct</div>
-        <div>${mmss(used)} used &middot; ${(used/tot).toFixed(0)}s per question</div>
-        <div>${S.left<=0 ? "Time expired" : "Submitted with " + mmss(S.left) + " left"}</div>
+        <div class="marks">
+          <span class="mk ok">${r.c} right</span><span class="mx">\u00d7 +3</span>
+          <span class="mk no">${r.w} wrong</span><span class="mx">\u00d7 \u22121</span>
+          <span class="mk sk">${r.b} blank</span><span class="mx">\u00d7 0</span>
+        </div>
+        <div>${attempted ? Math.round(r.c/attempted*100)+"% of attempts correct" : "Nothing attempted"}</div>
+        <div>${mmss(used)} used &middot; ${(used/tot).toFixed(0)}s per question &middot; ${
+          S.left<=0 ? "time expired" : mmss(S.left) + " left"}</div>
       </div>
     </div>
     <div class="label" style="color:var(--ink-soft);margin-bottom:8px">Review \u2014 tap any line</div>
     <div class="rev">${S.qs.map((q,n)=>{
-      const ok = S.picks[n]===q.a;
+      const blank = S.picks[n]===null, ok = S.picks[n]===q.a;
+      const pts = blank ? BLANK : ok ? RIGHT : WRONG;
       return `<button class="rev-i" data-go="${n}">
         <span class="rev-n">${String(n+1).padStart(2,"0")}</span>
         <span class="rev-t">${esc(q.q.slice(0,110))}\u2026</span>
-        <span class="rev-m ${ok?"ok":"no"}">${ok?"\u2713 "+LETTERS[q.a]
-          :(S.picks[n]===null?"\u2014":LETTERS[S.picks[n]])+" \u2192 "+LETTERS[q.a]}</span>
+        <span class="rev-m ${ok?"ok":blank?"sk":"no"}">${ok?"\u2713 "+LETTERS[q.a]
+          :blank?"\u2014":LETTERS[S.picks[n]]+" \u2192 "+LETTERS[q.a]}</span>
+        <span class="rev-p ${ok?"ok":blank?"sk":"no"}">${signed(pts)}</span>
       </button>`;}).join("")}</div>
   </div></div>
   <div class="nav"><div class="nav-in">

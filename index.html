@@ -228,6 +228,82 @@ button{font:inherit;color:inherit;background:none;border:none;cursor:pointer}
 .tile-r.hi{color:var(--mark)}.tile-r.lo{color:var(--signal)}.tile-r.mid{color:#B07A16}
 .empty{color:#8891A0;font-family:var(--mono);font-size:11px;letter-spacing:.1em;padding:30px 0;text-transform:uppercase}
 
+/* ---------- footer, account, panel ---------- */
+.foot{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  margin-top:22px;padding-top:15px;border-top:1px solid rgba(255,255,255,.12);
+}
+.foot-l{display:flex;align-items:center;gap:8px;flex:1;min-width:210px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.07em;color:#8891A0}
+.foot-r{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.dot{width:6px;height:6px;border-radius:50%;flex:none;background:#7E8792}
+.dot.host,.dot.local{background:#5FA383}
+.dot.none{background:#D2685C}
+.mini{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:#A8B0BA;border:1px solid rgba(255,255,255,.2);padding:7px 11px;border-radius:2px;
+}
+.mini:hover:not(:disabled){color:#fff;border-color:rgba(255,255,255,.45)}
+.mini:disabled{opacity:.35;cursor:default}
+.acct-who{
+  display:flex;align-items:center;gap:6px;
+  font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:#B4BBC4;
+  max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.sdot{width:6px;height:6px;border-radius:50%;flex:none;background:#7E8792}
+.sdot.ok{background:#5FA383}.sdot.err{background:#D2685C}
+.sdot.busy{background:#E0A93B;animation:tick 1s ease-in-out infinite}
+.sync-note{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:#8891A0;margin-top:9px;text-align:right;
+}
+.sync-note.error{color:#E08678}
+.sync-note.ok{color:#7FB79A}
+
+.pv-wrap{
+  position:fixed;inset:0;z-index:80;background:rgba(16,20,25,.72);
+  display:flex;align-items:center;justify-content:center;padding:22px;overflow-y:auto;
+}
+.pv{
+  background:var(--paper);border-radius:3px;padding:30px 32px;
+  width:100%;max-width:480px;box-shadow:0 20px 60px rgba(0,0,0,.5);
+}
+.pv-h{
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  padding-bottom:11px;border-bottom:1.5px solid var(--ink);margin-bottom:16px;
+}
+.pv-p{font-size:15px;color:#3D424A;margin:0 0 13px}
+.pv-ol{margin:0 0 13px;padding-left:19px;font-size:14.5px;color:#3D424A}
+.pv-ol li{margin-bottom:5px}
+.pv-ol b{font-family:var(--mono);font-size:12.5px}
+.pv-sql{
+  background:#191D23;color:#C9D3DC;border-radius:2px;padding:12px 13px;margin:0 0 14px;
+  font-family:var(--mono);font-size:10.5px;line-height:1.6;overflow-x:auto;white-space:pre;
+}
+.pv-l{
+  display:block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-soft);margin-bottom:5px;
+}
+.pv-i{
+  width:100%;font-family:var(--mono);font-size:13px;color:var(--ink);
+  background:var(--paper-2);border:1px solid var(--rule);border-radius:2px;
+  padding:10px 11px;margin-bottom:13px;
+}
+.pv-i:focus{outline:none;border-color:var(--dropout);background:#fff}
+.pv-err{font-family:var(--mono);font-size:11px;color:var(--signal);min-height:16px;margin-bottom:8px}
+.pv-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pv-go{
+  background:var(--ink);color:var(--paper);border-radius:2px;padding:11px 22px;
+  font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+}
+.pv-go:hover{background:#000}
+.pv-link{
+  display:block;margin-top:14px;font-family:var(--mono);font-size:10px;letter-spacing:.08em;
+  color:var(--ink-soft);text-decoration:underline;
+}
+.pv-link:hover{color:var(--ink)}
+@media(max-width:640px){.pv{padding:22px 18px}.acct-who{max-width:110px}}
+
 /* ---------- results ---------- */
 .score{display:flex;align-items:flex-end;gap:20px;border-bottom:1.5px solid var(--ink);padding-bottom:16px;margin-bottom:22px;flex-wrap:wrap}
 .score-n{font-family:var(--mono);font-size:64px;font-weight:600;line-height:.9;font-variant-numeric:tabular-nums}
@@ -295,19 +371,314 @@ let filter = "ALL";
 let S = null;                        // active session
 
 /* ---------------- storage (optional, degrades silently) ---------------- */
-async function loadScores(){
+const KEY = "cr-scores";
+let store = "none";                 // host | local | none
+
+function hasHost(){
+  return typeof window !== "undefined" && window.storage && window.storage.get;
+}
+function hasLocal(){
   try{
-    const r = await window.storage.get("cr-scores");
-    if (r && r.value) scores = JSON.parse(r.value);
-  }catch(e){ /* no storage — session-only scoring */ }
+    window.localStorage.setItem("__t","1");
+    window.localStorage.removeItem("__t");
+    return true;
+  }catch(e){ return false; }        // file:// or blocked cookies
 }
-async function saveScores(){
-  try{ await window.storage.set("cr-scores", JSON.stringify(scores)); }catch(e){}
+
+async function sPut(k, v){
+  const raw = JSON.stringify(v);
+  if (store === "host"){
+    try{ await window.storage.set(k, raw); return; }
+    catch(e){ store = hasLocal() ? "local" : "none"; }
+  }
+  if (store === "local"){
+    try{ window.localStorage.setItem(k, raw); }catch(e){ store = "none"; }
+  }
 }
+async function sGet(k){
+  if (store === "host"){
+    try{ const r = await window.storage.get(k); return r && r.value ? JSON.parse(r.value) : null; }
+    catch(e){ return null; }         // a missing key throws on the bridge
+  }
+  if (store === "local"){
+    try{ const raw = window.localStorage.getItem(k); return raw ? JSON.parse(raw) : null; }
+    catch(e){ return null; }
+  }
+  return null;
+}
+async function sDel(k){
+  try{
+    if (store === "host" && window.storage.delete) await window.storage.delete(k);
+    if (store === "local") window.localStorage.removeItem(k);
+  }catch(e){}
+}
+
+async function loadScores(){
+  store = hasHost() ? "host" : hasLocal() ? "local" : "none";
+  if (store === "host"){                    // bridge can exist but be unusable
+    try{ await window.storage.get(KEY); }
+    catch(e){ if (!/not found|no value|missing/i.test(e.message||"")) store = hasLocal() ? "local" : "none"; }
+  }
+  const v = await sGet(KEY);
+  if (v) scores = v;
+}
+const saveScores = () => sPut(KEY, scores);
+
+const STORE_NOTE = {
+  host:  "Progress saved in this workspace",
+  local: "Progress saved in this browser",
+  none:  "Not saved \u2014 this session only",
+};
 
 /* ---------------- helpers ---------------- */
 const esc = s => s.replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
 const mmss = s => Math.floor(s/60) + ":" + String(s%60).padStart(2,"0");
+
+
+/* ================= firebase accounts (optional) =================
+   Identity Toolkit + Firestore over plain fetch, no SDK. With no
+   project configured, or offline, the app runs as before on local
+   storage.                                                        */
+const CFG_K = "cr-drill-cloud-cfg", SESS_K = "cr-drill-session";
+let cloud = null;      // {projectId, apiKey}
+let sess  = null;      // {token, refresh_token, email, uid}
+let syncState = "off"; // off | ready | syncing | ok | error
+let syncNote  = "";
+
+const cloudOn = () => !!(cloud && cloud.projectId && cloud.apiKey);
+const authed  = () => !!(sess && sess.token);
+
+async function loadCloud(){
+  cloud = await sGet(CFG_K);
+  sess  = await sGet(SESS_K);
+  if (cloudOn()) syncState = authed() ? "ready" : "off";
+}
+
+function fbSay(code){
+  const m = {
+    EMAIL_EXISTS: "That email already has an account \u2014 sign in instead.",
+    EMAIL_NOT_FOUND: "No account with that email.",
+    INVALID_PASSWORD: "Wrong password.",
+    INVALID_LOGIN_CREDENTIALS: "Email or password is wrong.",
+    WEAK_PASSWORD: "Password needs at least 6 characters.",
+    INVALID_EMAIL: "That email doesn't look valid.",
+    OPERATION_NOT_ALLOWED: "Switch on Email/Password in Firebase \u2192 Authentication \u2192 Sign-in method.",
+    TOO_MANY_ATTEMPTS_TRY_LATER: "Too many attempts \u2014 wait a minute and try again.",
+    API_KEY_INVALID: "That Web API key isn't valid for this project.",
+  };
+  for (const k in m) if (code && code.indexOf(k) === 0) return m[k];
+  return code || "Sign-in failed";
+}
+
+async function fbAuth(kind, email, pw){
+  const path = kind === "up" ? "signUp" : "signInWithPassword";
+  const r = await fetch("https://identitytoolkit.googleapis.com/v1/accounts:" + path +
+                        "?key=" + encodeURIComponent(cloud.apiKey), {
+    method: "POST", headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ email, password: pw, returnSecureToken: true })
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(fbSay(d && d.error && d.error.message));
+  sess = { token: d.idToken, refresh_token: d.refreshToken,
+           email: d.email || email, uid: d.localId };
+  await sPut(SESS_K, sess);
+}
+const signIn = (m,p) => fbAuth("in", m, p);
+const signUp = (m,p) => fbAuth("up", m, p);
+
+async function fbRefresh(){
+  if (!sess || !sess.refresh_token) return false;
+  const r = await fetch("https://securetoken.googleapis.com/v1/token?key=" +
+                        encodeURIComponent(cloud.apiKey), {
+    method: "POST", headers: {"Content-Type":"application/x-www-form-urlencoded"},
+    body: "grant_type=refresh_token&refresh_token=" + encodeURIComponent(sess.refresh_token)
+  });
+  if (!r.ok) return false;
+  const d = await r.json();
+  sess = Object.assign({}, sess, { token: d.id_token, refresh_token: d.refresh_token });
+  await sPut(SESS_K, sess);
+  return true;
+}
+
+async function withAuth(fn){          // one retry after the hour-long token ages out
+  let r = await fn();
+  if ((r.status === 401 || r.status === 403) && await fbRefresh()) r = await fn();
+  return r;
+}
+
+const fbDoc = () => "https://firestore.googleapis.com/v1/projects/" +
+  encodeURIComponent(cloud.projectId) +
+  "/databases/(default)/documents/cr_progress/" + encodeURIComponent(sess.uid);
+
+async function pullRemote(){
+  const r = await withAuth(() => fetch(fbDoc(), {
+    headers: { "Authorization": "Bearer " + sess.token } }));
+  if (r.status === 404) return {};     // nothing stored yet
+  if (!r.ok) throw new Error("Could not read progress (" + r.status + ")");
+  const d = await r.json();
+  const raw = d.fields && d.fields.scores && d.fields.scores.stringValue;
+  try{ return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+}
+
+async function pushRemote(merged){
+  const url = fbDoc() + "?updateMask.fieldPaths=scores&updateMask.fieldPaths=updated";
+  const r = await withAuth(() => fetch(url, {
+    method: "PATCH",
+    headers: { "Authorization": "Bearer " + sess.token, "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: {
+      scores:  { stringValue: JSON.stringify(merged) },
+      updated: { stringValue: new Date().toISOString() } } })
+  }));
+  if (!r.ok) throw new Error("Could not save progress (" + r.status + ")");
+}
+
+async function signOut(){
+  sess = null; await sDel(SESS_K);
+  syncState = "off"; syncNote = "";
+}
+
+/* newest attempt per set wins; sets only one side has are kept */
+function mergeScores(a, b){
+  const out = Object.assign({}, a);
+  for (const k in b){
+    const mine = out[k], theirs = b[k];
+    if (!mine || (theirs.ts || 0) > (mine.ts || 0)) out[k] = theirs;
+  }
+  return out;
+}
+
+async function syncNow(quiet){
+  if (!cloudOn() || !authed()) return;
+  syncState = "syncing"; syncNote = "";
+  if (!quiet) renderIndex();
+  try{
+    const merged = mergeScores(scores, await pullRemote());
+    await pushRemote(merged);
+    scores = merged;
+    await saveScores();
+    syncState = "ok";
+    syncNote = "Synced " + new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
+  }catch(e){
+    syncState = "error";
+    syncNote = (e && e.message) || "Sync failed";
+  }
+  renderIndex();
+}
+
+/* ---------------- account panel ---------------- */
+let panel = null;                     // null | "auth" | "setup"
+const closePanel = () => { panel = null; renderIndex(); };
+
+const FB_RULES = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /cr_progress/{uid} {
+      allow read, write:
+        if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}`;
+
+function panelHTML(){
+  if (!panel) return "";
+  const setup = panel === "setup" || !cloudOn();
+  const body = setup ? `
+    <p class="pv-p">Sync needs a Firebase project you own \u2014 free to start.</p>
+    <ol class="pv-ol">
+      <li>Make a project at <b>console.firebase.google.com</b>.</li>
+      <li><i>Build \u2192 Authentication \u2192 Sign-in method</i>: switch on <b>Email/Password</b>.</li>
+      <li><i>Build \u2192 Firestore Database</i>: create one in <b>production mode</b>.</li>
+      <li>In its <i>Rules</i> tab, paste this and publish:</li>
+    </ol>
+    <pre class="pv-sql">${esc(FB_RULES)}</pre>
+    <p class="pv-p">Then copy both values from <i>Project settings \u2192 General</i>. The API key is
+       public by design \u2014 the rules above are what protect your data.</p>
+    <label class="pv-l">Project ID</label>
+    <input class="pv-i" id="cf-projectId" placeholder="my-drill-app" value="${cloud?esc(cloud.projectId||""):""}">
+    <label class="pv-l">Web API key</label>
+    <input class="pv-i" id="cf-apiKey" placeholder="AIzaSy..." value="${cloud?esc(cloud.apiKey||""):""}">
+    <div class="pv-row">
+      <button class="pv-go" id="c-save">Save project</button>
+      <button class="mini" id="c-cancel">Cancel</button>
+    </div>`
+  : `
+    <p class="pv-p">Sign in to carry your marks between devices. Same email and password
+       on your phone and laptop and the progress follows you.</p>
+    <label class="pv-l">Email</label>
+    <input class="pv-i" id="a-mail" type="email" autocomplete="username" placeholder="you@example.com">
+    <label class="pv-l">Password</label>
+    <input class="pv-i" id="a-pw" type="password" autocomplete="current-password" placeholder="at least 6 characters">
+    <div class="pv-err" id="a-err"></div>
+    <div class="pv-row">
+      <button class="pv-go" id="a-in">Sign in</button>
+      <button class="mini" id="a-up">Create account</button>
+      <button class="mini" id="a-cancel">Cancel</button>
+    </div>
+    <button class="pv-link" id="a-cfg">Change Firebase project</button>`;
+
+  return `<div class="pv-wrap" id="pv-wrap"><div class="pv">
+    <div class="pv-h">${setup ? "Connect Firebase" : "Account"}</div>${body}
+  </div></div>`;
+}
+
+function wirePanel(){
+  if (!panel) return;
+  const wrap = document.getElementById("pv-wrap");
+  if (wrap) wrap.onclick = e => { if (e.target === wrap) closePanel(); };
+
+  const save = document.getElementById("c-save");
+  if (save){
+    document.getElementById("c-cancel").onclick = closePanel;
+    save.onclick = async () => {
+      const projectId = document.getElementById("cf-projectId").value.trim();
+      const apiKey    = document.getElementById("cf-apiKey").value.trim();
+      if (!projectId || !apiKey){ alert("Both values are needed."); return; }
+      cloud = { projectId, apiKey };
+      await sPut(CFG_K, cloud);
+      if (sess){ sess = null; await sDel(SESS_K); }   // old creds mean nothing here
+      panel = "auth"; renderIndex();
+    };
+    return;
+  }
+
+  const err = document.getElementById("a-err");
+  const run = async kind => {
+    const m = document.getElementById("a-mail").value.trim();
+    const p = document.getElementById("a-pw").value;
+    if (!m || !p){ err.textContent = "Email and password, please."; return; }
+    err.textContent = "Working\u2026";
+    try{
+      await (kind === "up" ? signUp(m,p) : signIn(m,p));
+      panel = null; syncState = "ready"; renderIndex();
+      syncNow(true);
+    }catch(e){ err.textContent = e.message; }
+  };
+  document.getElementById("a-in").onclick = () => run("in");
+  document.getElementById("a-up").onclick = () => run("up");
+  document.getElementById("a-cancel").onclick = closePanel;
+  document.getElementById("a-cfg").onclick = () => { panel = "setup"; renderIndex(); };
+  document.getElementById("a-pw").onkeydown = e => { if (e.key === "Enter") run("in"); };
+}
+
+function accountHTML(){
+  if (!cloudOn())  return `<button class="mini" id="acct">Set up sync</button>`;
+  if (!authed())   return `<button class="mini" id="acct">Sign in</button>`;
+  const dot = syncState === "error" ? "err" : syncState === "syncing" ? "busy" : "ok";
+  return `<span class="acct-who"><span class="sdot ${dot}"></span>${esc(sess.email || "signed in")}</span>
+    <button class="mini" id="sync">${syncState === "syncing" ? "Syncing\u2026" : "Sync"}</button>
+    <button class="mini" id="out">Sign out</button>`;
+}
+
+function wireAccount(){
+  const a = document.getElementById("acct");
+  if (a) a.onclick = () => { panel = cloudOn() ? "auth" : "setup"; renderIndex(); };
+  const s = document.getElementById("sync");
+  if (s) s.onclick = () => syncNow(false);
+  const o = document.getElementById("out");
+  if (o) o.onclick = async () => {
+    if (confirm("Sign out? Progress stays on this device.")){ await signOut(); renderIndex(); }
+  };
+}
 
 /* ---------------- index screen ---------------- */
 function renderIndex(){
@@ -360,12 +731,21 @@ function renderIndex(){
         <div class="tile-n">${String(m.n).padStart(3,"0")}</div>
         <div class="tile-s">${esc(m.label)}</div>${r}</button>`;
     }).join("") || `<div class="empty">No sets match that filter</div>`}</div>
-  </div>`;
+    <div class="foot">
+      <div class="foot-l">
+        <span class="dot ${store}"></span>
+        <span>${STORE_NOTE[store]}${done ? " \u00b7 " + done + " set" + (done===1?"":"s") + " recorded" : ""}</span>
+      </div>
+      <div class="foot-r">${accountHTML()}</div>
+    </div>
+    ${syncNote ? `<div class="sync-note ${syncState}">${esc(syncNote)}</div>` : ""}
+  </div>` + panelHTML();
 
   app.querySelectorAll("[data-f]").forEach(b =>
     b.onclick = () => { filter = b.dataset.f; renderIndex(); });
   app.querySelectorAll("[data-set]").forEach(b =>
     b.onclick = () => startSet(+b.dataset.set));
+  wireAccount(); wirePanel();
 }
 
 /* ---------------- session ---------------- */
@@ -407,7 +787,9 @@ async function finish(){
   const r = tally(S.qs, S.picks);
   scores[S.i] = { c: r.c, w: r.w, b: r.b, m: r.m, max: r.max, n: S.qs.length,
                   t: Math.min(DURATION, DURATION - Math.max(0,S.left)) };
+  scores[S.i].ts = Date.now();
   await saveScores();
+  if (cloudOn() && authed()) syncNow(true);   // never blocks grading
   renderResults();
 }
 
@@ -615,7 +997,10 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---------------- boot ---------------- */
-loadScores().then(renderIndex);
+loadScores()
+  .then(loadCloud)
+  .then(renderIndex)
+  .then(() => { if (cloudOn() && authed()) syncNow(true); });
 </script>
 </body>
 </html>
